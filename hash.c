@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef int cmp_sig (const void *, const void *);
+
 void quit(char * str) {
     puts(str);
     exit(EXIT_FAILURE);
@@ -113,6 +115,16 @@ int cmpWord(struct word * a, struct word * b) {
     return state;
 }
 
+int cmpWordPack_a(struct word_pack * a, struct word_pack * b) {
+    return cmpWord(a->word, b->word);
+}
+
+int cmpWordPack_b(struct word_pack * a, struct word_pack * b) {
+    if(a->rep > b->rep) return -1;
+    else if(a->rep == b->rep ) return 0;
+    else return 1;
+}
+
 void printWord(struct word * t) {
     for(int i = 0; i < t->size; i++)
         printf("%c", t->word[i]);
@@ -152,11 +164,39 @@ void addWordToVec(struct word * t) {
     vector.words[vector.size++].rep = 1;
 }
 
+void addWordToVecO(struct word * t) {
+    int position = -1;
+    if(vector.size >= vector.max_size) {
+    vector.max_size = vector.max_size * 2;
+    vector.words = realloc(vector.words, sizeof(struct word_pack) * vector.max_size);
+    if(vector.words == NULL)
+        quit("Out of memory");
+    }
+    for(int i = 0; i < vector.size; i++) {
+        if(cmpWord(t, vector.words[i].word) < 1) {
+            position = i;
+            break;
+        }
+    }
+    if(position == -1) {
+        position = vector.size;
+    } else {
+        for(int i = vector.size; i > position; i--) {
+            vector.words[i].word = vector.words[i-1].word;
+            vector.words[i].rep = vector.words[i-1].rep;
+        }
+    }
+    vector.words[position].word = copyWord(t);
+    vector.words[position].rep = 1;
+    vector.size++;
+}
+
 void addWord(struct word * t) {
     int found = 0;
     int position = -1;
     switch(mode) {
         case VD:
+        case VO:
             for(int i = 0; i < vector.size; i++) {
                 if(cmpWord(t, vector.words[i].word) == 0) {
                     position = i;
@@ -167,9 +207,8 @@ void addWord(struct word * t) {
             if(found)
                 vector.words[position].rep += 1;
             else
-                addWordToVec(t);
-        break;
-        case VO:
+                if(mode == VD) addWordToVec(t);
+                else addWordToVecO(t);
         break;
         case LD:
         case LO:
@@ -184,12 +223,13 @@ void addWord(struct word * t) {
 void logWords() {
     switch(mode) {
         case VD:
+        case VO:
+            qsort(vector.words, vector.size, sizeof(struct word_pack), (cmp_sig *) ((out == A) ? cmpWordPack_a : cmpWordPack_b));
             for(int i = 0; i < vector.size; i++) {
                 printWord(vector.words[i].word);
                 printf("\t %d\n", vector.words[i].rep);
             }
         break;
-        case VO:
         break;
         case LD:
         case LO:
@@ -280,8 +320,8 @@ int main(int argc, char ** argv) {
             case ',': case '.': case ' ':
             case '#': case '/': case '=':
             case '+': case '-': case '"':
-                printWord(word);
-                puts("");
+                /*printWord(word);*/
+                /*(puts("");*/
                 if(word->size > 0) addWord(word);
                 freeWord(word);
                 word = NULL;
@@ -292,7 +332,7 @@ int main(int argc, char ** argv) {
         int_read = fgetc(file);
     }
     if(word != NULL) {
-        printWord(word);
+        /*printWord(word);*/
         if(word->size > 0) addWord(word);
         freeWord(word);
         word = NULL;
